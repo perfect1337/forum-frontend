@@ -17,7 +17,7 @@ const AppContent = () => {
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user_id");
     setIsAuthenticated(false);
   };
 
@@ -38,7 +38,7 @@ const AppContent = () => {
       </header>
 
       {showLogin && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "right", alignItems: "center" }}>
           <div style={{ backgroundColor: "white", padding: "20px", borderRadius: "5px" }}>
             <Login onSuccess={handleLoginSuccess} />
             <button onClick={() => setShowLogin(false)} style={{ marginTop: "10px" }}>Close</button>
@@ -47,7 +47,7 @@ const AppContent = () => {
       )}
 
       {showRegister && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "right", alignItems: "center" }}>
           <div style={{ backgroundColor: "white", padding: "20px", borderRadius: "5px" }}>
             <Register />
             <button onClick={() => setShowRegister(false)} style={{ marginTop: "10px" }}>Close</button>

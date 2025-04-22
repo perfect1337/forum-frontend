@@ -9,26 +9,16 @@ const Login = ({ onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post(
-        "http://localhost:8080/auth/login", 
-        { email, password },
-        {
-          headers: {
-            "Content-Type": "application/json"
-          }
-        }
-      );
-      
-      if (response.data.access_token) {
-        localStorage.setItem("access_token", response.data.access_token);
-        localStorage.setItem("refresh_token", response.data.refresh_token);
-        onSuccess();
-      } else {
-        throw new Error("No access token received");
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      setError(error.response?.data?.error || "Login failed");
+      const response = await axios.post("http://localhost:8080/auth/login", {
+        email,
+        password
+      });
+
+      localStorage.setItem("access_token", response.data.access_token);
+      localStorage.setItem("user_id", String(response.data.user_id)); // Преобразуем к строке
+      onSuccess();
+    } catch (err) {
+      setError(err.response?.data?.error || "Login failed");
     }
   };
 
@@ -57,14 +47,14 @@ const Login = ({ onSuccess }) => {
             style={{ width: "100%", padding: "8px" }}
           />
         </div>
-        <button 
+        <button
           type="submit"
-          style={{ 
-            padding: "8px 16px", 
-            background: "#007bff", 
-            color: "white", 
-            border: "none", 
-            borderRadius: "4px" 
+          style={{
+            padding: "8px 16px",
+            background: "#007bff",
+            color: "white",
+            border: "none",
+            borderRadius: "4px"
           }}
         >
           Login

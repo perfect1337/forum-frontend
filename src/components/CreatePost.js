@@ -21,47 +21,32 @@ const CreatePost = ({ onPostCreated }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-
-    if (!formData.title.trim() || !formData.content.trim()) {
-        setError("Title and content are required");
-        return;
-    }
-
     setIsSubmitting(true);
-
+    setError("");
+    
     try {
-        const token = localStorage.getItem("access_token");
-        if (!token) throw new Error("Authentication required");
-
-        const response = await axios.post(
-            "http://localhost:8081/posts",
-            {
-                title: formData.title,
-                content: formData.content
-            },
-            {
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
-
-        setFormData({ title: "", content: "" });
-        if (onPostCreated) onPostCreated(response.data);
-
+      const token = localStorage.getItem("access_token");
+      const response = await axios.post(
+        "http://localhost:8081/posts",
+        {
+          title: formData.title,
+          content: formData.content
+        },
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+      setFormData({ title: "", content: "" });
+      if (onPostCreated) onPostCreated(response.data);
     } catch (err) {
-        console.error("Post creation error:", err);
-        setError(err.response?.data?.error || err.message || "Failed to create post");
+      console.error("Post creation error:", err);
+      setError(err.response?.data?.error || err.message || "Failed to create post");
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
-};
-
-  // Rest of your component code remains the same...
-  const styles = {
-    // ... (keep all your existing styles)
   };
 
   if (!isAuthenticated) {
@@ -69,13 +54,31 @@ const CreatePost = ({ onPostCreated }) => {
   }
 
   return (
-    <div style={styles.postFormContainer}>
+    <div style={{ 
+      margin: "2rem 0", 
+      padding: "1.5rem", 
+      border: "1px solid #e1e1e1", 
+      borderRadius: "8px", 
+      background: "#fff", 
+      boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+    }}>
       <h2>Create New Post</h2>
-      {error && <div style={styles.errorMessage}>{error}</div>}
+      {error && <div style={{ 
+        color: "#dc3545", 
+        marginBottom: "1rem", 
+        padding: "0.5rem", 
+        background: "#f8d7da", 
+        border: "1px solid #f5c6cb", 
+        borderRadius: "4px"
+      }}>{error}</div>}
 
-      <form onSubmit={handleSubmit} style={styles.postForm}>
-        <div style={styles.formGroup}>
-          <label htmlFor="title" style={styles.label}>Title:</label>
+      <form onSubmit={handleSubmit} style={{ 
+        display: "flex", 
+        flexDirection: "column", 
+        gap: "1rem"
+      }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <label htmlFor="title" style={{ fontWeight: "500" }}>Title:</label>
           <input
             id="title"
             type="text"
@@ -84,12 +87,17 @@ const CreatePost = ({ onPostCreated }) => {
             onChange={handleChange}
             required
             maxLength={100}
-            style={styles.input}
+            style={{
+              padding: "0.75rem",
+              border: "1px solid #ddd",
+              borderRadius: "4px",
+              fontSize: "1rem"
+            }}
           />
         </div>
 
-        <div style={styles.formGroup}>
-          <label htmlFor="content" style={styles.label}>Content:</label>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <label htmlFor="content" style={{ fontWeight: "500" }}>Content:</label>
           <textarea
             id="content"
             name="content"
@@ -97,7 +105,14 @@ const CreatePost = ({ onPostCreated }) => {
             onChange={handleChange}
             required
             rows={5}
-            style={styles.textarea}
+            style={{
+              padding: "0.75rem",
+              border: "1px solid #ddd",
+              borderRadius: "4px",
+              fontSize: "1rem",
+              minHeight: "120px",
+              resize: "vertical"
+            }}
           />
         </div>
 
@@ -105,23 +120,29 @@ const CreatePost = ({ onPostCreated }) => {
           type="submit"
           disabled={isSubmitting}
           style={{
-            ...styles.submitButton,
-            ...(isSubmitting ? styles.submitButtonDisabled : {})
-          }}
-          onMouseOver={(e) => {
-            if (!isSubmitting) {
-              e.currentTarget.style.background = '#0056b3'; // Directly use the color value
-            }
-          }}
-          onMouseOut={(e) => {
-            if (!isSubmitting) {
-              e.currentTarget.style.background = '#007bff'; // Directly use the color value
-            }
+            padding: "0.75rem 1.5rem",
+            background: isSubmitting ? "#cccccc" : "#007bff",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: isSubmitting ? "not-allowed" : "pointer",
+            fontSize: "1rem",
+            transition: "background 0.2s",
+            alignSelf: "flex-start"
           }}
         >
           {isSubmitting ? (
             <>
-              <span style={styles.spinner}></span>
+              <span style={{
+                display: "inline-block",
+                width: "1rem",
+                height: "1rem",
+                border: "2px solid rgba(255,255,255,0.3)",
+                borderRadius: "50%",
+                borderTopColor: "white",
+                animation: "spin 1s ease-in-out infinite",
+                marginRight: "0.5rem"
+              }} />
               Creating...
             </>
           ) : (
@@ -130,13 +151,11 @@ const CreatePost = ({ onPostCreated }) => {
         </button>
       </form>
 
-      <style>
-        {`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}
-      </style>
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
