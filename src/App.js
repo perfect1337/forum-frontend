@@ -4,7 +4,7 @@ import Posts from "./pages/Posts";
 import Register from "./components/Register";
 import Login from "./components/Login";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-
+import Chat from './components/Chat';
 const AppContent = () => {
   const { isAuthenticated, setIsAuthenticated } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
@@ -25,6 +25,7 @@ const AppContent = () => {
     <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" }}>
         <h1>Forum</h1>
+  
         <div>
           {!isAuthenticated ? (
             <>
@@ -54,7 +55,15 @@ const AppContent = () => {
           </div>
         </div>
       )}
-
+      <div style={{ display: 'flex', gap: '20px' }}>
+  <div style={{ flex: 2 }}>
+    {isAuthenticated && <CreatePost />}
+    <Posts />
+  </div>
+  <div style={{ flex: 1 }}>
+    <Chat />
+  </div>
+</div>
       {isAuthenticated && <CreatePost />}
       <Posts />
     </div>
