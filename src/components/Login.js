@@ -25,7 +25,7 @@ const Login = ({ onSuccess }) => {
   return (
     <div>
       <h2>Login</h2>
-      {error && <div style={{ color: "red", marginBottom: "10px" }}>{error}</div>}
+      {error && <div style={{ color: "yellow", marginBottom: "10px" }}>{error}</div>}
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: "10px" }}>
           <label style={{ display: "block", marginBottom: "5px" }}>Email:</label>

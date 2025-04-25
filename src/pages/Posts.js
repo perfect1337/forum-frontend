@@ -9,17 +9,20 @@ const Posts = () => {
   const [commentTexts, setCommentTexts] = useState({});
   const [expandedComments, setExpandedComments] = useState({});
   const { isAuthenticated } = useContext(AuthContext);
-  const [currentUsername, setCurrentUsername] = useState(null);
+  const [currentUser, setCurrentUser] = useState({ username: null, role: 'user' });
 
-  // Получаем username из JWT токена
+  // Получаем данные пользователя из JWT токена
   useEffect(() => {
-    const getUsernameFromToken = () => {
+    const getUserDataFromToken = () => {
       try {
         const token = localStorage.getItem("access_token");
         if (!token) return null;
 
         const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.username || null;
+        return {
+          username: payload.username || null,
+          role: payload.role || 'user'
+        };
       } catch (err) {
         console.error("Error parsing token:", err);
         return null;
@@ -27,19 +30,16 @@ const Posts = () => {
     };
 
     if (isAuthenticated) {
-      const username = getUsernameFromToken();
-      setCurrentUsername(username);
+      const userData = getUserDataFromToken();
+      setCurrentUser(userData || { username: null, role: 'user' });
     } else {
-      setCurrentUsername(null);
+      setCurrentUser({ username: null, role: 'user' });
     }
   }, [isAuthenticated]);
 
   // Обработчики комментариев
   const handleCommentChange = (postId, text) => {
-    setCommentTexts(prev => ({
-      ...prev,
-      [postId]: text
-    }));
+    setCommentTexts(prev => ({ ...prev, [postId]: text }));
   };
 
   const handleAddComment = async (postId) => {
@@ -48,24 +48,19 @@ const Posts = () => {
     try {
       const token = localStorage.getItem("access_token");
       const response = await axios.post(
-        `http://localhost:8081/posts/${postId}/comments`, // или /comments/post/${postId}
+        `http://localhost:8081/posts/${postId}/comments`,
         { text: commentTexts[postId] },
-        {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          }
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-  
-      setPosts(posts.map(post =>
-        post.id === postId
-          ? { ...post, comments: [...(post.comments || []), response.data] }
-          : post
+
+      setPosts(posts.map(post => 
+        post.id === postId ? { 
+          ...post, 
+          comments: [...(post.comments || []), response.data] 
+        } : post
       ));
       setCommentTexts(prev => ({ ...prev, [postId]: "" }));
     } catch (err) {
-      console.error("Error adding comment:", err);
       setError(err.response?.data?.error || "Failed to add comment");
     }
   };
@@ -73,80 +68,56 @@ const Posts = () => {
   const handleDeleteComment = async (postId, commentId) => {
     try {
       const token = localStorage.getItem("access_token");
-      const response = await axios.delete(
-        `http://localhost:8081/posts/${postId}/comments/${commentId}`, // Обновленный URL
-        {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          }
-        }
+      await axios.delete(
+        `http://localhost:8081/posts/${postId}/comments/${commentId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-  
+
       setPosts(posts.map(post =>
-        post.id === postId
-          ? {
-              ...post,
-              comments: post.comments.filter(c => c.id !== commentId)
-            }
-          : post
+        post.id === postId ? {
+          ...post,
+          comments: post.comments.filter(c => c.id !== commentId)
+        } : post
       ));
     } catch (err) {
-      console.error("Full error details:", err);
-      console.error("Error response:", err.response?.data);
       setError(err.response?.data?.error || "Failed to delete comment");
     }
   };
-  // Остальные обработчики (для постов)
-  const handleDeletePost = async (postId) => {
-    if (!isAuthenticated) {
-      alert("You need to be logged in to delete a post.");
-      return;
-    }
 
+  // Обработчик удаления поста
+  const handleDeletePost = async (postId) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
 
     try {
       const token = localStorage.getItem("access_token");
       await axios.delete(`http://localhost:8081/posts/${postId}`, {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
       setPosts(posts.filter(post => post.id !== postId));
     } catch (err) {
-      console.error("Delete error:", err);
       setError(err.response?.data?.error || "Failed to delete post");
     }
   };
 
-
-  const newLocal = async () => {
+  // Загрузка постов
+  const fetchPosts = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("access_token");
-  
       const response = await axios.get("http://localhost:8081/posts", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         params: { includeComments: true }
       });
-  
-      // Убедитесь, что комментарии есть в ответе
-      console.log("Fetched posts:", response.data);
       setPosts(response.data || []);
       setError("");
     } catch (err) {
-      console.error("Error fetching posts:", err);
       setError(err.response?.data?.error || "Failed to load posts");
     } finally {
       setLoading(false);
     }
   };
-  const fetchPosts = newLocal;
 
-  useEffect(() => {
-    fetchPosts();
-  }, [isAuthenticated]);
+  useEffect(() => { fetchPosts(); }, [isAuthenticated]);
 
   if (loading) return <div>Loading posts...</div>;
   if (error) return <div style={{ color: "red" }}>{error}</div>;
@@ -165,7 +136,8 @@ const Posts = () => {
               borderRadius: "5px",
               position: "relative"
             }}>
-              {isAuthenticated && currentUsername === post.author && (
+              {/* Кнопка удаления для автора или админа */}
+              {(isAuthenticated && (currentUser.username === post.author || currentUser.role === 'admin')) && (
                 <button
                   onClick={() => handleDeletePost(post.id)}
                   style={{
@@ -207,38 +179,38 @@ const Posts = () => {
 
                 {expandedComments[post.id] && (
                   <div style={{ marginTop: "10px" }}>
-                  {post.comments?.map(comment => (
-    <div key={comment.id} style={{
-        padding: "10px",
-        margin: "5px 0",
-        background: "#f5f5f5",
-        borderRadius: "4px",
-        position: "relative"
-    }}>
-        <p>{comment.text}</p>
-        <small>
-            By: <strong>{comment.author}</strong> at {new Date(comment.created_at).toLocaleString()}
-        </small>
-        
-        {isAuthenticated && currentUsername === comment.author && (
-            <button
-                onClick={() => handleDeleteComment(post.id, comment.id)}
-                style={{
-                    position: "absolute",
-                    top: "5px",
-                    right: "5px",
-                    background: "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "#ff4444",
-                    fontSize: "1.2rem"
-                }}
-            >
-                ×
-            </button>
-        )}
-    </div>
-))}
+                    {post.comments?.map(comment => (
+                      <div key={comment.id} style={{
+                        padding: "10px",
+                        margin: "5px 0",
+                        background: "#f5f5f5",
+                        borderRadius: "4px",
+                        position: "relative"
+                      }}>
+                        <p>{comment.text}</p>
+                        <small>
+                          By: <strong>{comment.author}</strong> at {new Date(comment.created_at).toLocaleString()}
+                        </small>
+                        
+                        {isAuthenticated && currentUser.username === comment.author && (
+                          <button
+                            onClick={() => handleDeleteComment(post.id, comment.id)}
+                            style={{
+                              position: "absolute",
+                              top: "5px",
+                              right: "5px",
+                              background: "transparent",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "#ff4444",
+                              fontSize: "1.2rem"
+                            }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
 
                     {isAuthenticated && (
                       <div style={{ marginTop: "15px" }}>
