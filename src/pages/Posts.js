@@ -192,7 +192,7 @@ const Posts = () => {
                           By: <strong>{comment.author}</strong> at {new Date(comment.created_at).toLocaleString()}
                         </small>
                         
-                        {isAuthenticated && currentUser.username === comment.author && (
+                        { isAuthenticated &&  ((currentUser.username === post.author || currentUser.role === 'admin') ||  currentUser.username === comment.author)  &&
                           <button
                             onClick={() => handleDeleteComment(post.id, comment.id)}
                             style={{
@@ -208,7 +208,7 @@ const Posts = () => {
                           >
                             ×
                           </button>
-                        )}
+                        }
                       </div>
                     ))}
 
