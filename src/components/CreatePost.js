@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 
@@ -10,6 +10,38 @@ const CreatePost = ({ onPostCreated }) => {
   });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentUser, setCurrentUser] = useState({ 
+    username: null,
+    userId: null,
+    role: 'user'
+  });
+
+  // Получаем данные пользователя из токена
+  useEffect(() => {
+    const getUserData = () => {
+      try {
+        const token = localStorage.getItem("access_token");
+        if (!token) return null;
+        
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return {
+          username: payload.username || "User",
+          userId: payload.user_id,
+          role: payload.role || 'user'
+        };
+      } catch (err) {
+        console.error("Error parsing token:", err);
+        return null;
+      }
+    };
+
+    if (isAuthenticated) {
+      const userData = getUserData();
+      if (userData) {
+        setCurrentUser(userData);
+      }
+    }
+  }, [isAuthenticated]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -30,7 +62,9 @@ const CreatePost = ({ onPostCreated }) => {
         "http://localhost:8081/posts",
         {
           title: formData.title,
-          content: formData.content
+          content: formData.content,
+          authorId: currentUser.userId, // Добавляем authorId в запрос
+          authorName: currentUser.username // Добавляем authorName в запрос
         },
         {
           headers: {
@@ -39,6 +73,7 @@ const CreatePost = ({ onPostCreated }) => {
           }
         }
       );
+      
       setFormData({ title: "", content: "" });
       if (onPostCreated) onPostCreated(response.data);
     } catch (err) {
@@ -62,15 +97,38 @@ const CreatePost = ({ onPostCreated }) => {
       background: "#fff", 
       boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
     }}>
-      <h2>Create New Post</h2>
-      {error && <div style={{ 
-        color: "#dc3545", 
-        marginBottom: "1rem", 
-        padding: "0.5rem", 
-        background: "#f8d7da", 
-        border: "1px solid #f5c6cb", 
-        borderRadius: "4px"
-      }}>{error}</div>}
+      <div style={{ 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "center", 
+        marginBottom: "1rem" 
+      }}>
+        <h2>Create New Post</h2>
+        {currentUser.username && (
+          <div style={{ 
+            fontSize: "0.9rem", 
+            color: "#666",
+            background: "#f5f5f5",
+            padding: "0.5rem 1rem",
+            borderRadius: "20px"
+          }}>
+            Posting as: <strong style={{ color: "#333" }}>{currentUser.username}</strong>
+          </div>
+        )}
+      </div>
+      
+      {error && (
+        <div style={{ 
+          color: "#dc3545", 
+          marginBottom: "1rem", 
+          padding: "0.5rem", 
+          background: "#f8d7da", 
+          border: "1px solid #f5c6cb", 
+          borderRadius: "4px"
+        }}>
+          {error}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} style={{ 
         display: "flex", 
@@ -118,10 +176,12 @@ const CreatePost = ({ onPostCreated }) => {
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !formData.title.trim() || !formData.content.trim()}
           style={{
             padding: "0.75rem 1.5rem",
-            background: isSubmitting ? "#cccccc" : "#007bff",
+            background: isSubmitting || !formData.title.trim() || !formData.content.trim() 
+              ? "#cccccc" 
+              : "#007bff",
             color: "white",
             border: "none",
             borderRadius: "4px",

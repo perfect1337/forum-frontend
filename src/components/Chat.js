@@ -173,6 +173,7 @@ const Chat = () => {
         ref={messagesContainerRef}
         style={{ 
           height: '400px', 
+          width: '200px',
           overflowY: 'auto', 
           border: '1px solid #ddd', 
           padding: '10px',
@@ -202,7 +203,7 @@ const Chat = () => {
             </div>
           </div>
         ))}
-      </div>
+      </div>          
     </div>
   );
 };

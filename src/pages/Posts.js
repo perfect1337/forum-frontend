@@ -9,18 +9,23 @@ const Posts = () => {
   const [commentTexts, setCommentTexts] = useState({});
   const [expandedComments, setExpandedComments] = useState({});
   const { isAuthenticated } = useContext(AuthContext);
-  const [currentUser, setCurrentUser] = useState({ username: null, role: 'user' });
+  const [currentUser, setCurrentUser] = useState({ 
+    username: null, 
+    userId: null,
+    role: 'user'
+  });
 
-  // Получаем данные пользователя из JWT токена
+  // Получаем данные пользователя из токена
   useEffect(() => {
-    const getUserDataFromToken = () => {
+    const getUserData = () => {
       try {
         const token = localStorage.getItem("access_token");
         if (!token) return null;
-
+        
         const payload = JSON.parse(atob(token.split('.')[1]));
         return {
-          username: payload.username || null,
+          username: payload.username || "User",
+          userId: payload.user_id,
           role: payload.role || 'user'
         };
       } catch (err) {
@@ -30,12 +35,29 @@ const Posts = () => {
     };
 
     if (isAuthenticated) {
-      const userData = getUserDataFromToken();
-      setCurrentUser(userData || { username: null, role: 'user' });
-    } else {
-      setCurrentUser({ username: null, role: 'user' });
+      const userData = getUserData();
+      setCurrentUser(userData || { username: null, userId: null, role: 'user' });
     }
   }, [isAuthenticated]);
+
+  // Загрузка постов
+  const fetchPosts = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("access_token");
+      const response = await axios.get("http://localhost:8081/posts", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        params: { includeComments: true }
+      });
+
+      setPosts(response.data);
+      setError("");
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to load posts");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Обработчики комментариев
   const handleCommentChange = (postId, text) => {
@@ -49,14 +71,22 @@ const Posts = () => {
       const token = localStorage.getItem("access_token");
       const response = await axios.post(
         `http://localhost:8081/posts/${postId}/comments`,
-        { text: commentTexts[postId] },
+        { 
+          content: commentTexts[postId],
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       setPosts(posts.map(post => 
         post.id === postId ? { 
           ...post, 
-          comments: [...(post.comments || []), response.data] 
+          comments: [
+            ...(post.comments || []), 
+            {
+              ...response.data,
+              author: currentUser.username || "You"
+            }
+          ]
         } : post
       ));
       setCommentTexts(prev => ({ ...prev, [postId]: "" }));
@@ -99,24 +129,6 @@ const Posts = () => {
     }
   };
 
-  // Загрузка постов
-  const fetchPosts = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("access_token");
-      const response = await axios.get("http://localhost:8081/posts", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        params: { includeComments: true }
-      });
-      setPosts(response.data || []);
-      setError("");
-    } catch (err) {
-      setError(err.response?.data?.error || "Failed to load posts");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => { fetchPosts(); }, [isAuthenticated]);
 
   if (loading) return <div>Loading posts...</div>;
@@ -136,14 +148,33 @@ const Posts = () => {
               borderRadius: "5px",
               position: "relative"
             }}>
+              {/* Заголовок поста с именем автора */}
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "10px"
+              }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>{post.title}</h3>
+                  <small style={{ color: "#666" }}>
+                    Posted by: <strong>{post.author}</strong>
+                  </small>
+                </div>
+                <div style={{ color: "#666" }}>
+                  {new Date(post.created_at).toLocaleDateString()}
+                </div>
+              </div>
+
               {/* Кнопка удаления для автора или админа */}
-              {(isAuthenticated && (currentUser.username === post.author || currentUser.role === 'admin')) && (
+              {(isAuthenticated && (currentUser.userId === post.user_id || currentUser.role === 'admin')) && (
                 <button
                   onClick={() => handleDeletePost(post.id)}
                   style={{
                     position: "absolute",
-                    top: "10px",
-                    right: "10px",
+                    width: "150px",
+                    marginRight:"120pt",
+                    right: "1px",
                     background: "#ff4444",
                     color: "white",
                     border: "none",
@@ -156,9 +187,10 @@ const Posts = () => {
                 </button>
               )}
 
-              <h3 style={{ marginTop: "40px" }}>{post.title}</h3>
-              <p>{post.content}</p>
+              {/* Содержимое поста */}
+              <p style={{ margin: "10px 0" }}>{post.content}</p>
 
+              {/* Комментарии */}
               <div style={{ marginTop: "15px" }}>
                 <button
                   onClick={() => setExpandedComments(prev => ({
@@ -187,12 +219,12 @@ const Posts = () => {
                         borderRadius: "4px",
                         position: "relative"
                       }}>
-                        <p>{comment.text}</p>
-                        <small>
+                        <p>{comment.content}</p>
+                        <small style={{ color: "#666" }}>
                           By: <strong>{comment.author}</strong> at {new Date(comment.created_at).toLocaleString()}
                         </small>
                         
-                        { isAuthenticated &&  ((currentUser.username === post.author || currentUser.role === 'admin') ||  currentUser.username === comment.author)  &&
+                        {(isAuthenticated && (currentUser.userId === comment.user_id || currentUser.role === 'admin')) && (
                           <button
                             onClick={() => handleDeleteComment(post.id, comment.id)}
                             style={{
@@ -208,7 +240,7 @@ const Posts = () => {
                           >
                             ×
                           </button>
-                        }
+                        )}
                       </div>
                     ))}
 
