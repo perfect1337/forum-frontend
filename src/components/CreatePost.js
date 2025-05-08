@@ -16,23 +16,46 @@ const CreatePost = ({ onPostCreated }) => {
     role: 'user'
   });
 
+  // Улучшенный парсер JWT токена
+  const parseJwtToken = (token) => {
+    try {
+      if (!token) return null;
+      
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        throw new Error("Invalid token format");
+      }
+
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      
+      return JSON.parse(jsonPayload);
+    } catch (err) {
+      console.error("Token parsing error:", err);
+      return null;
+    }
+  };
+
   // Получаем данные пользователя из токена
   useEffect(() => {
     const getUserData = () => {
-      try {
-        const token = localStorage.getItem("access_token");
-        if (!token) return null;
-        
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return {
-          username: payload.username || "User",
-          userId: payload.user_id,
-          role: payload.role || 'user'
-        };
-      } catch (err) {
-        console.error("Error parsing token:", err);
-        return null;
-      }
+      const token = localStorage.getItem("access_token");
+      if (!token) return null;
+      
+      const payload = parseJwtToken(token);
+      if (!payload) return null;
+      
+      return {
+        username: payload.username || payload.sub || "User",
+        userId: payload.user_id || payload.sub,
+        role: payload.role || 'user'
+      };
     };
 
     if (isAuthenticated) {
@@ -58,19 +81,34 @@ const CreatePost = ({ onPostCreated }) => {
     
     try {
       const token = localStorage.getItem("access_token");
+      if (!token) {
+        throw new Error("No authentication token found");
+      }
+
+      // Проверяем токен перед отправкой
+      const payload = parseJwtToken(token);
+      if (!payload) {
+        throw new Error("Invalid token");
+      }
+
+      if (payload.exp && Date.now() >= payload.exp * 1000) {
+        throw new Error("Token expired");
+      }
+
       const response = await axios.post(
         "http://localhost:8081/posts",
         {
           title: formData.title,
           content: formData.content,
-          authorId: currentUser.userId, // Добавляем authorId в запрос
-          authorName: currentUser.username // Добавляем authorName в запрос
+          authorId: currentUser.userId,
+          authorName: currentUser.username
         },
         {
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
-          }
+          },
+          withCredentials: true // Важно для куков
         }
       );
       
