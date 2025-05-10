@@ -19,13 +19,22 @@ const CreatePost = ({ onPostCreated }) => {
   // Улучшенный парсер JWT токена
   const parseJwtToken = (token) => {
     try {
-      if (!token) return null;
+      console.log("Original token:", token);
+      
+      if (!token || typeof token !== 'string') {
+        throw new Error('Token is missing or not a string');
+      }
+      
+      // Удаляем возможные кавычки и префикс "Bearer "
+      token = token.replace(/^"(.*)"$/, '$1').replace(/^Bearer\s+/i, '');
+      
+      console.log("Processed token:", token);
       
       const parts = token.split('.');
       if (parts.length !== 3) {
-        throw new Error("Invalid token format");
+        throw new Error(`Invalid token format: expected 3 parts, got ${parts.length}`);
       }
-
+  
       const base64Url = parts[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       const jsonPayload = decodeURIComponent(
@@ -38,28 +47,38 @@ const CreatePost = ({ onPostCreated }) => {
       return JSON.parse(jsonPayload);
     } catch (err) {
       console.error("Token parsing error:", err);
+      localStorage.removeItem('access_token');
       return null;
     }
   };
-
   // Получаем данные пользователя из токена
   useEffect(() => {
     const getUserData = () => {
       const token = localStorage.getItem("access_token");
+      console.log("Token from localStorage:", token); // Добавьте этот лог
+      
       if (!token) return null;
       
-      const payload = parseJwtToken(token);
-      if (!payload) return null;
-      
-      return {
-        username: payload.username || payload.sub || "User",
-        userId: payload.user_id || payload.sub,
-        role: payload.role || 'user'
-      };
+      try {
+        const payload = parseJwtToken(token);
+        console.log("Parsed payload:", payload); // Добавьте этот лог
+        
+        if (!payload) return null;
+        
+        return {
+          username: payload.username || payload.sub || "User",
+          userId: payload.user_id || payload.sub,
+          role: payload.role || 'user'
+        };
+      } catch (err) {
+        console.error("Failed to parse token:", err);
+        return null;
+      }
     };
-
+  
     if (isAuthenticated) {
       const userData = getUserData();
+      console.log("User data from token:", userData); // Добавьте этот лог
       if (userData) {
         setCurrentUser(userData);
       }
@@ -84,31 +103,33 @@ const CreatePost = ({ onPostCreated }) => {
       if (!token) {
         throw new Error("No authentication token found");
       }
-
+  
       // Проверяем токен перед отправкой
       const payload = parseJwtToken(token);
+      console.log("Token payload:", payload); // Добавьте этот лог
+      
       if (!payload) {
-        throw new Error("Invalid token");
+        throw new Error("Invalid token - parsing failed");
       }
-
+  
       if (payload.exp && Date.now() >= payload.exp * 1000) {
         throw new Error("Token expired");
       }
-
+  
       const response = await axios.post(
         "http://localhost:8081/posts",
         {
           title: formData.title,
           content: formData.content,
-          authorId: currentUser.userId,
-          authorName: currentUser.username
+          authorId: payload.user_id || payload.sub, // Используем ID из токена
+          authorName: payload.username || payload.sub // Используем имя из токена
         },
         {
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
           },
-          withCredentials: true // Важно для куков
+          withCredentials: true
         }
       );
       
@@ -117,6 +138,12 @@ const CreatePost = ({ onPostCreated }) => {
     } catch (err) {
       console.error("Post creation error:", err);
       setError(err.response?.data?.error || err.message || "Failed to create post");
+      
+      // Если ошибка связана с токеном, предлагаем перелогиниться
+      if (err.message.includes("token")) {
+        setError("Session expired. Please log in again.");
+        localStorage.removeItem('access_token');
+      }
     } finally {
       setIsSubmitting(false);
     }

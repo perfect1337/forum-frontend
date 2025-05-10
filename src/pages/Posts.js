@@ -15,32 +15,69 @@ const Posts = () => {
     role: 'user'
   });
 
-  // Получаем данные пользователя из токена
+  const parseJwtToken = (token) => {
+    try {
+      // Проверяем, что токен существует и является строкой
+      if (!token || typeof token !== 'string') {
+        throw new Error('Токен отсутствует или не является строкой');
+      }
+      
+      // Удаляем возможные кавычки вокруг токена
+      token = token.replace(/^"(.*)"$/, '$1');
+      
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        throw new Error(`Неверный формат токена: ожидается 3 части, получено ${parts.length}`);
+      }
+  
+      // Проверяем, что все части существуют
+      if (!parts[0] || !parts[1] || !parts[2]) {
+        throw new Error('Токен содержит пустые части');
+      }
+  
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      
+      return JSON.parse(jsonPayload);
+    } catch (err) {
+      console.error("Ошибка парсинга токена:", err);
+      localStorage.removeItem('access_token');
+      return null;
+    }
+  };
+
   useEffect(() => {
     const getUserData = () => {
       try {
-        const token = localStorage.getItem("access_token");
+        const token = localStorage.getItem('access_token');
         if (!token) return null;
-        
-        const payload = JSON.parse(atob(token.split('.')[1]));
+
+        const decoded = parseJwtToken(token);
+        if (!decoded) return null;
+
         return {
-          username: payload.username || "User",
-          userId: payload.user_id,
-          role: payload.role || 'user'
+          userId: decoded.user_id,
+          username: decoded.username,
+          role: decoded.role || 'user'
         };
-      } catch (err) {
-        console.error("Error parsing token:", err);
+      } catch (error) {
+        console.error('Ошибка получения данных пользователя:', error);
         return null;
       }
     };
 
     if (isAuthenticated) {
-      const userData = getUserData();
-      setCurrentUser(userData || { username: null, userId: null, role: 'user' });
+      const user = getUserData();
+      setCurrentUser(user || { username: null, userId: null, role: 'user' });
     }
   }, [isAuthenticated]);
 
-  // Загрузка постов
   const fetchPosts = async () => {
     try {
       setLoading(true);
@@ -53,13 +90,12 @@ const Posts = () => {
       setPosts(response.data);
       setError("");
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to load posts");
+      setError(err.response?.data?.error || "Не удалось загрузить посты");
     } finally {
       setLoading(false);
     }
   };
 
-  // Обработчики комментариев
   const handleCommentChange = (postId, text) => {
     setCommentTexts(prev => ({ ...prev, [postId]: text }));
   };
@@ -71,9 +107,7 @@ const Posts = () => {
       const token = localStorage.getItem("access_token");
       const response = await axios.post(
         `http://localhost:8081/posts/${postId}/comments`,
-        { 
-          content: commentTexts[postId],
-        },
+        { content: commentTexts[postId] },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -84,14 +118,14 @@ const Posts = () => {
             ...(post.comments || []), 
             {
               ...response.data,
-              author: currentUser.username || "You"
+              author: currentUser.username || "Вы"
             }
           ]
         } : post
       ));
       setCommentTexts(prev => ({ ...prev, [postId]: "" }));
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to add comment");
+      setError(err.response?.data?.error || "Не удалось добавить комментарий");
     }
   };
 
@@ -110,13 +144,12 @@ const Posts = () => {
         } : post
       ));
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to delete comment");
+      setError(err.response?.data?.error || "Не удалось удалить комментарий");
     }
   };
 
-  // Обработчик удаления поста
   const handleDeletePost = async (postId) => {
-    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    if (!window.confirm("Вы уверены, что хотите удалить этот пост?")) return;
 
     try {
       const token = localStorage.getItem("access_token");
@@ -125,118 +158,74 @@ const Posts = () => {
       });
       setPosts(posts.filter(post => post.id !== postId));
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to delete post");
+      setError(err.response?.data?.error || "Не удалось удалить пост");
     }
   };
 
-  useEffect(() => { fetchPosts(); }, [isAuthenticated]);
+  useEffect(() => { 
+    fetchPosts(); 
+  }, [isAuthenticated]);
 
-  if (loading) return <div>Loading posts...</div>;
-  if (error) return <div style={{ color: "red" }}>{error}</div>;
+  if (loading) return <div className="loading">Загрузка постов...</div>;
+  if (error) return <div className="error">{error}</div>;
 
   return (
-    <div style={{ marginTop: "30px" }}>
-      <h2>Recent Posts</h2>
+    <div className="posts-container">
+      <h2>Последние посты</h2>
       {posts.length === 0 ? (
-        <p>No posts yet. Be the first to post!</p>
+        <p>Пока нет постов. Будьте первым!</p>
       ) : (
-        <div style={{ display: "grid", gap: "20px" }}>
+        <div className="posts-list">
           {posts.map((post) => (
-            <div key={post.id} style={{
-              border: "1px solid #ddd",
-              padding: "15px",
-              borderRadius: "5px",
-              position: "relative"
-            }}>
-              {/* Заголовок поста с именем автора */}
-              <div style={{ 
-                display: "flex", 
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "10px"
-              }}>
+            <div key={`post-${post.id}`} className="post-card">
+              <div className="post-header">
                 <div>
-                  <h3 style={{ margin: 0 }}>{post.title}</h3>
-                  <small style={{ color: "#666" }}>
-                    Posted by: <strong>{post.author}</strong>
+                  <h3>{post.title}</h3>
+                  <small>
+                    Автор: <strong>{post.author}</strong>
                   </small>
                 </div>
-                <div style={{ color: "#666" }}>
+                <div className="post-date">
                   {new Date(post.created_at).toLocaleDateString()}
                 </div>
               </div>
 
-              {/* Кнопка удаления для автора или админа */}
               {(isAuthenticated && (currentUser.userId === post.user_id || currentUser.role === 'admin')) && (
                 <button
                   onClick={() => handleDeletePost(post.id)}
-                  style={{
-                    position: "absolute",
-                    width: "150px",
-                    marginRight:"120pt",
-                    right: "1px",
-                    background: "#ff4444",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    padding: "5px 10px",
-                    cursor: "pointer"
-                  }}
+                  className="delete-post-button"
                 >
-                  Delete Post
+                  Удалить пост
                 </button>
               )}
 
-              {/* Содержимое поста */}
-              <p style={{ margin: "10px 0" }}>{post.content}</p>
+              <p className="post-content">{post.content}</p>
 
-              {/* Комментарии */}
-              <div style={{ marginTop: "15px" }}>
+              <div className="comments-section">
                 <button
                   onClick={() => setExpandedComments(prev => ({
                     ...prev,
                     [post.id]: !prev[post.id]
                   }))}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "#007bff",
-                    cursor: "pointer",
-                    padding: "5px 0"
-                  }}
+                  className="toggle-comments"
                 >
-                  {expandedComments[post.id] ? "Hide" : "Show"} Comments (
+                  {expandedComments[post.id] ? "Скрыть" : "Показать"} комментарии (
                   {post.comments?.length || 0})
                 </button>
 
                 {expandedComments[post.id] && (
-                  <div style={{ marginTop: "10px" }}>
+                  <div className="comments-list">
                     {post.comments?.map(comment => (
-                      <div key={comment.id} style={{
-                        padding: "10px",
-                        margin: "5px 0",
-                        background: "#f5f5f5",
-                        borderRadius: "4px",
-                        position: "relative"
-                      }}>
+                      <div key={`comment-${comment.id}`} className="comment">
                         <p>{comment.content}</p>
-                        <small style={{ color: "#666" }}>
-                          By: <strong>{comment.author}</strong> at {new Date(comment.created_at).toLocaleString()}
+                        <small>
+                          Автор: <strong>{comment.author}</strong>, {new Date(comment.created_at).toLocaleString()}
                         </small>
                         
                         {(isAuthenticated && (currentUser.userId === comment.user_id || currentUser.role === 'admin')) && (
                           <button
                             onClick={() => handleDeleteComment(post.id, comment.id)}
-                            style={{
-                              position: "absolute",
-                              top: "5px",
-                              right: "5px",
-                              background: "transparent",
-                              border: "none",
-                              cursor: "pointer",
-                              color: "#ff4444",
-                              fontSize: "1.2rem"
-                            }}
+                            className="delete-comment-button"
                           >
                             ×
                           </button>
@@ -245,32 +234,18 @@ const Posts = () => {
                     ))}
 
                     {isAuthenticated && (
-                      <div style={{ marginTop: "15px" }}>
+                      <div className="add-comment">
                         <textarea
                           value={commentTexts[post.id] || ""}
                           onChange={(e) => handleCommentChange(post.id, e.target.value)}
-                          placeholder="Write a comment..."
-                          style={{
-                            width: "100%",
-                            padding: "8px",
-                            marginBottom: "5px",
-                            border: "1px solid #ddd",
-                            borderRadius: "4px"
-                          }}
+                          placeholder="Написать комментарий..."
                         />
                         <button
                           onClick={() => handleAddComment(post.id)}
                           disabled={!commentTexts[post.id]?.trim()}
-                          style={{
-                            padding: "5px 10px",
-                            background: !commentTexts[post.id]?.trim() ? "#cccccc" : "#007bff",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: !commentTexts[post.id]?.trim() ? "not-allowed" : "pointer"
-                          }}
+                          className="add-comment-button"
                         >
-                          Add Comment
+                          Добавить комментарий
                         </button>
                       </div>
                     )}
@@ -281,6 +256,122 @@ const Posts = () => {
           ))}
         </div>
       )}
+
+      <style jsx>{`
+        .posts-container {
+          margin-top: 30px;
+        }
+        
+        .loading, .error {
+          padding: 20px;
+          text-align: center;
+        }
+        
+        .error {
+          color: #dc3545;
+        }
+        
+        .posts-list {
+          display: grid;
+          gap: 20px;
+        }
+        
+        .post-card {
+          border: 1px solid #ddd;
+          padding: 15px;
+          border-radius: 5px;
+          position: relative;
+        }
+        
+        .post-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 10px;
+        }
+        
+        .post-date {
+          color: #666;
+        }
+        
+        .post-content {
+          margin: 10px 0;
+        }
+        
+        .delete-post-button {
+          position: absolute;
+          
+          right: 1px;
+          background: #ff4444;
+          color: white;
+          border: none;
+          width: 150px;
+          border-radius: 4px;
+          padding: 5px 10px;
+          cursor: pointer;
+        }
+        
+        .comments-section {
+          margin-top: 15px;
+        }
+        
+        .toggle-comments {
+          background: none;
+          border: none;
+          color: #007bff;
+          cursor: pointer;
+          padding: 5px 0;
+        }
+        
+        .comments-list {
+          margin-top: 10px;
+        }
+        
+        .comment {
+          padding: 10px;
+          margin: 5px 0;
+          background: #f5f5f5;
+          border-radius: 4px;
+          position: relative;
+        }
+        
+        .delete-comment-button {
+          position: absolute;
+          top: 5px;
+          right: 5px;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          color: #ff4444;
+          font-size: 1.2rem;
+        }
+        
+        .add-comment {
+          margin-top: 15px;
+        }
+        
+        .add-comment textarea {
+          width: 100%;
+          padding: 8px;
+          margin-bottom: 5px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        
+        .add-comment-button {
+          padding: 5px 10px;
+          background: #007bff;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        
+        .add-comment-button:disabled {
+          background: #cccccc;
+          cursor: not-allowed;
+        }
+      `}</style>
     </div>
   );
 };

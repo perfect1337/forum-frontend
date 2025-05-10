@@ -13,15 +13,18 @@ const Login = ({ onSuccess }) => {
         email,
         password
       });
-
-      localStorage.setItem("access_token", response.data.access_token);
-      localStorage.setItem("user_id", String(response.data.user_id)); // Преобразуем к строке
+  
+      // Проверяем структуру ответа
+      console.log("Login response:", response.data);
+      
+      // Сохраняем access_token из правильного поля
+      localStorage.setItem("access_token", response.data.AccessToken);
+      localStorage.setItem("user_id", String(response.data.User.ID)); // Используем User.ID из ответа
       onSuccess();
     } catch (err) {
       setError(err.response?.data?.error || "Login failed");
     }
   };
-
   return (
     <div>
       <h2>Login</h2>
