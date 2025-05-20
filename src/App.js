@@ -5,11 +5,15 @@ import Register from "./components/Register";
 import Login from "./components/Login";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Chat from './components/Chat';
+import { BrowserRouter as Router } from 'react-router-dom';
+
+// Оборачиваем всё приложение в Router
 
 const AppContent = () => {
   const { isAuthenticated, setIsAuthenticated } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
@@ -192,9 +196,11 @@ const AppContent = () => {
 
 const App = () => {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <Router>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </Router>
   );
 };
 

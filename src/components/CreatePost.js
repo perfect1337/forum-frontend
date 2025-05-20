@@ -2,7 +2,7 @@ import React, { useState, useContext, useEffect } from "react";
 import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 
-const CreatePost = ({ onPostCreated }) => {
+const PostForm = ({ onPostCreated, postToEdit, onEditComplete }) => {
   const { isAuthenticated } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     title: "",
@@ -15,6 +15,16 @@ const CreatePost = ({ onPostCreated }) => {
     userId: null,
     role: 'user'
   });
+
+  // Устанавливаем начальные данные формы при редактировании
+  useEffect(() => {
+    if (postToEdit) {
+      setFormData({
+        title: postToEdit.title,
+        content: postToEdit.content
+      });
+    }
+  }, [postToEdit]);
 
   // Улучшенный парсер JWT токена
   const parseJwtToken = (token) => {
@@ -104,10 +114,7 @@ const CreatePost = ({ onPostCreated }) => {
         throw new Error("No authentication token found");
       }
   
-      // Проверяем токен перед отправкой
       const payload = parseJwtToken(token);
-      console.log("Token payload:", payload); // Добавьте этот лог
-      
       if (!payload) {
         throw new Error("Invalid token - parsing failed");
       }
@@ -115,31 +122,51 @@ const CreatePost = ({ onPostCreated }) => {
       if (payload.exp && Date.now() >= payload.exp * 1000) {
         throw new Error("Token expired");
       }
-  
-      const response = await axios.post(
-        "http://localhost:8081/posts",
-        {
-          title: formData.title,
-          content: formData.content,
-          authorId: payload.user_id || payload.sub, // Используем ID из токена
-          authorName: payload.username || payload.sub // Используем имя из токена
-        },
-        {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
+
+      let response;
+      if (postToEdit) {
+        // Обновление существующего поста
+        response = await axios.put(
+          `http://localhost:8081/posts/${postToEdit.id}`,
+          {
+            title: formData.title,
+            content: formData.content
           },
-          withCredentials: true
-        }
-      );
+          {
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            withCredentials: true
+          }
+        );
+        if (onEditComplete) onEditComplete(response.data);
+      } else {
+        // Создание нового поста
+        response = await axios.post(
+          "http://localhost:8081/posts",
+          {
+            title: formData.title,
+            content: formData.content,
+            authorId: payload.user_id || payload.sub,
+            authorName: payload.username || payload.sub
+          },
+          {
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            withCredentials: true
+          }
+        );
+        if (onPostCreated) onPostCreated(response.data);
+      }
       
       setFormData({ title: "", content: "" });
-      if (onPostCreated) onPostCreated(response.data);
     } catch (err) {
-      console.error("Post creation error:", err);
-      setError(err.response?.data?.error || err.message || "Failed to create post");
+      console.error("Post operation error:", err);
+      setError(err.response?.data?.error || err.message || "Failed to process post");
       
-      // Если ошибка связана с токеном, предлагаем перелогиниться
       if (err.message.includes("token")) {
         setError("Session expired. Please log in again.");
         localStorage.removeItem('access_token');
@@ -168,7 +195,7 @@ const CreatePost = ({ onPostCreated }) => {
         alignItems: "center", 
         marginBottom: "1rem" 
       }}>
-        <h2>Create New Post</h2>
+        <h2>{postToEdit ? "Edit Post" : "Create New Post"}</h2>
         {currentUser.username && (
           <div style={{ 
             fontSize: "0.9rem", 
@@ -198,19 +225,25 @@ const CreatePost = ({ onPostCreated }) => {
       <form onSubmit={handleSubmit} style={{ 
         display: "flex", 
         flexDirection: "column", 
-        gap: "1rem"
+        gap: "1rem" 
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          <label htmlFor="title" style={{ fontWeight: "500" }}>Title:</label>
+        <div>
+          <label htmlFor="title" style={{ 
+            display: "block", 
+            marginBottom: "0.5rem", 
+            fontWeight: "500" 
+          }}>
+            Title
+          </label>
           <input
-            id="title"
             type="text"
+            id="title"
             name="title"
             value={formData.title}
             onChange={handleChange}
             required
-            maxLength={100}
             style={{
+              width: "100%",
               padding: "0.75rem",
               border: "1px solid #ddd",
               borderRadius: "4px",
@@ -219,21 +252,27 @@ const CreatePost = ({ onPostCreated }) => {
           />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          <label htmlFor="content" style={{ fontWeight: "500" }}>Content:</label>
+        <div>
+          <label htmlFor="content" style={{ 
+            display: "block", 
+            marginBottom: "0.5rem", 
+            fontWeight: "500" 
+          }}>
+            Content
+          </label>
           <textarea
             id="content"
             name="content"
             value={formData.content}
             onChange={handleChange}
             required
-            rows={5}
+            rows="6"
             style={{
+              width: "100%",
               padding: "0.75rem",
               border: "1px solid #ddd",
               borderRadius: "4px",
               fontSize: "1rem",
-              minHeight: "120px",
               resize: "vertical"
             }}
           />
@@ -241,48 +280,23 @@ const CreatePost = ({ onPostCreated }) => {
 
         <button
           type="submit"
-          disabled={isSubmitting || !formData.title.trim() || !formData.content.trim()}
+          disabled={isSubmitting}
           style={{
             padding: "0.75rem 1.5rem",
-            background: isSubmitting || !formData.title.trim() || !formData.content.trim() 
-              ? "#cccccc" 
-              : "#007bff",
+            backgroundColor: "#007bff",
             color: "white",
             border: "none",
             borderRadius: "4px",
-            cursor: isSubmitting ? "not-allowed" : "pointer",
             fontSize: "1rem",
-            transition: "background 0.2s",
-            alignSelf: "flex-start"
+            cursor: isSubmitting ? "not-allowed" : "pointer",
+            opacity: isSubmitting ? 0.7 : 1
           }}
         >
-          {isSubmitting ? (
-            <>
-              <span style={{
-                display: "inline-block",
-                width: "1rem",
-                height: "1rem",
-                border: "2px solid rgba(255,255,255,0.3)",
-                borderRadius: "50%",
-                borderTopColor: "white",
-                animation: "spin 1s ease-in-out infinite",
-                marginRight: "0.5rem"
-              }} />
-              Creating...
-            </>
-          ) : (
-            "Create Post"
-          )}
+          {isSubmitting ? "Processing..." : (postToEdit ? "Update Post" : "Create Post")}
         </button>
       </form>
-
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 };
 
-export default CreatePost;
+export default PostForm;

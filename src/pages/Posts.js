@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from "react";
 import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
+import PostForm from "../components/CreatePost";
 
 const Posts = () => {
   const [posts, setPosts] = useState([]);
@@ -14,6 +15,7 @@ const Posts = () => {
     userId: null,
     role: 'user'
   });
+  const [editingPost, setEditingPost] = useState(null);
 
   const parseJwtToken = (token) => {
     try {
@@ -162,6 +164,17 @@ const Posts = () => {
     }
   };
 
+  const handleEditPost = (post) => {
+    setEditingPost(post);
+  };
+
+  const handleEditComplete = (updatedPost) => {
+    setPosts(posts.map(post => 
+      post.id === updatedPost.id ? updatedPost : post
+    ));
+    setEditingPost(null);
+  };
+
   useEffect(() => { 
     fetchPosts(); 
   }, [isAuthenticated]);
@@ -178,80 +191,99 @@ const Posts = () => {
         <div className="posts-list">
           {posts.map((post) => (
             <div key={`post-${post.id}`} className="post-card">
-              <div className="post-header">
-                <div>
-                  <h3>{post.title}</h3>
-                  <small>
-                    Автор: <strong>{post.author}</strong>
-                  </small>
-                </div>
-                <div className="post-date">
-                  {new Date(post.created_at).toLocaleDateString()}
-                </div>
-              </div>
+              {editingPost?.id === post.id ? (
+                <PostForm
+                  postToEdit={post}
+                  onEditComplete={handleEditComplete}
+                />
+              ) : (
+                <>
+                  <div className="post-header">
+                    <div>
+                      <h3>{post.title}</h3>
+                      <small>
+                        Автор: <strong>{post.author}</strong>
+                      </small>
+                    </div>
+                    <div className="post-date">
+                      {new Date(post.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
 
-              {(isAuthenticated && (currentUser.userId === post.user_id || currentUser.role === 'admin')) && (
-                <button
-                  onClick={() => handleDeletePost(post.id)}
-                  className="delete-post-button"
-                >
-                  Удалить пост
-                </button>
-              )}
+                  <div className="post-content">
+                    {post.content}
+                  </div>
 
-              <p className="post-content">{post.content}</p>
+                  {(isAuthenticated && (currentUser.userId === post.user_id || currentUser.role === 'admin')) && (
+                    <div className="post-actions">
+                      <button
+                        onClick={() => handleEditPost(post)}
+                        className="edit-post-button"
+                      >
+                        Редактировать
+                      </button>
+                      <button
+                        onClick={() => handleDeletePost(post.id)}
+                        className="delete-post-button"
+                      >
+                        Удалить пост
+                      </button>
+                    </div>
+                  )}
 
-              <div className="comments-section">
-                <button
-                  onClick={() => setExpandedComments(prev => ({
-                    ...prev,
-                    [post.id]: !prev[post.id]
-                  }))}
-                  className="toggle-comments"
-                >
-                  {expandedComments[post.id] ? "Скрыть" : "Показать"} комментарии (
-                  {post.comments?.length || 0})
-                </button>
+                  <div className="comments-section">
+                    <button
+                      onClick={() => setExpandedComments(prev => ({
+                        ...prev,
+                        [post.id]: !prev[post.id]
+                      }))}
+                      className="toggle-comments"
+                    >
+                      {expandedComments[post.id] ? "Скрыть" : "Показать"} комментарии (
+                      {post.comments?.length || 0})
+                    </button>
 
-                {expandedComments[post.id] && (
-                  <div className="comments-list">
-                    {post.comments?.map(comment => (
-                      <div key={`comment-${comment.id}`} className="comment">
-                        <p>{comment.content}</p>
-                        <small>
-                          Автор: <strong>{comment.author}</strong>, {new Date(comment.created_at).toLocaleString()}
-                        </small>
-                        
-                        {(isAuthenticated && (currentUser.userId === comment.user_id || currentUser.role === 'admin')) && (
-                          <button
-                            onClick={() => handleDeleteComment(post.id, comment.id)}
-                            className="delete-comment-button"
-                          >
-                            ×
-                          </button>
+                    {expandedComments[post.id] && (
+                      <div className="comments-list">
+                        {post.comments?.map(comment => (
+                          <div key={`comment-${comment.id}`} className="comment">
+                            <p>{comment.content}</p>
+                            <small>
+                              Автор: <strong>{comment.author}</strong>, {new Date(comment.created_at).toLocaleString()}
+                            </small>
+                            
+                            {(isAuthenticated && (currentUser.userId === comment.user_id || currentUser.role === 'admin')) && (
+                              <button
+                                onClick={() => handleDeleteComment(post.id, comment.id)}
+                                className="delete-comment-button"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+
+                        {isAuthenticated && (
+                          <div className="add-comment">
+                            <textarea
+                              value={commentTexts[post.id] || ""}
+                              onChange={(e) => handleCommentChange(post.id, e.target.value)}
+                              placeholder="Написать комментарий..."
+                            />
+                            <button
+                              onClick={() => handleAddComment(post.id)}
+                              disabled={!commentTexts[post.id]?.trim()}
+                              className="add-comment-button"
+                            >
+                              Добавить комментарий
+                            </button>
+                          </div>
                         )}
-                      </div>
-                    ))}
-
-                    {isAuthenticated && (
-                      <div className="add-comment">
-                        <textarea
-                          value={commentTexts[post.id] || ""}
-                          onChange={(e) => handleCommentChange(post.id, e.target.value)}
-                          placeholder="Написать комментарий..."
-                        />
-                        <button
-                          onClick={() => handleAddComment(post.id)}
-                          disabled={!commentTexts[post.id]?.trim()}
-                          className="add-comment-button"
-                        >
-                          Добавить комментарий
-                        </button>
                       </div>
                     )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -366,7 +398,7 @@ const Posts = () => {
           border-radius: 4px;
           cursor: pointer;
         }
-        
+
         .add-comment-button:disabled {
           background: #cccccc;
           cursor: not-allowed;
